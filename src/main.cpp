@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <kf.h>
 
 // WiFi credentials - CHANGE THESE TO YOUR NETWORK
 const char* ssid = "Rob-Arm";         // Replace with your WiFi name
@@ -61,6 +62,7 @@ float wristOffset = 0.0f;
 
 static int wristRotations{};
 
+KF KFArm(0,0,0.5);
 
 // Safe I2C reading functions with mutex protection
 float readArmAngleSafe() {
@@ -69,6 +71,18 @@ float readArmAngleSafe() {
     ARM_WIRE
     if (Arm.detectMagnet()) {
       angle = fmod((Arm.readAngle() / 4096.0f * 360.0f), 360.0f) - 180.0f;
+
+      Serial.println("Angle Before KF: ");
+      Serial.println(angle);
+
+      KFArm.predict(DT);
+      KFArm.update(angle,0.5);
+
+      angle = KFArm.pos();
+
+      Serial.println("Angle After KF: ");
+      Serial.println(angle);
+
     }
     Wire.end();
     xSemaphoreGive(i2cMutex);
@@ -882,14 +896,14 @@ void loop() {
 
   // Use thread-safe I2C reading functions
   float armAngle = readArmAngleSafe();
-  Serial.print("Arm Angle : ");
-  Serial.println(armAngle,2);
+  // Serial.print("Arm Angle : ");
+  // Serial.println(armAngle,2);
 
   // delay(5);
 
   float wristAngle = readWristAngleSafe();
   Serial.print("Wrist Angle : ");
-  Serial.println(wristAngle,2);
+  // Serial.println(wristAngle,2);
 
   // Apply motor control without safety checks
   // Normal operation - compute PID and control motors
